@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dizzy Fix - Inscription</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-container">
+        <h1>🛡️ Inscription</h1>
+        <p>Créez votre profil Dizzy Fix</p>
+        
+        <form id="registerForm">
+            <div class="input-group">
+                <label for="fullName">Nom complet</label>
+                <input type="text" id="fullName" required>
+            </div>
+            <div class="input-group">
+                <label for="email">Adresse Email</label>
+                <input type="email" id="email" required>
+            </div>
+            <div class="input-group">
+                <label for="username">Identifiant (Pseudo)</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="input-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">Créer mon compte</button>
+        </form>
+        
+        <p><a href="login.html" style="color: #848ccf; text-decoration: none; font-size: 13px; display: inline-block; margin-top: 15px;">Déjà un compte ? Se connecter</a></p>
+        <p id="regMessage" class="error-message"></p>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value;
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageElement = document.getElementById('regMessage');
+            
+            messageElement.style.color = "#848ccf";
+            messageElement.innerText = "Création du compte...";
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password, full_name: fullName })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageElement.style.color = "#00ffcc";
+                    messageElement.innerText = "Compte créé avec succès ! Redirection...";
+                    
+                    localStorage.setItem('temp_username', username); 
+                    
+                    setTimeout(() => { 
+                        window.location.href = 'questionnaire.html'; 
+                    }, 2000); 
+                } else {
+                    messageElement.style.color = "#e94560";
+                    messageElement.innerText = result.detail || "Erreur lors de l'inscription.";
+                }
+
+            } catch (error) {
+                messageElement.style.color = "#ffde7d";
+                messageElement.innerText = "Impossible de contacter le serveur Python.";
+            }
+        });
+    </script>
+</body>
+</html>

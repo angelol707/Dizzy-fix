@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dizzy Fix - Profil Médical</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-container" style="width: 450px;">
+        <h1>📋 Vos Antécédents</h1>
+        <p>Évaluons votre sensibilité pour adapter votre bibliothèque VR.</p>
+        
+        <form id="antecedentsForm">
+            <div class="input-group">
+                <label for="motionSickness">🤢 Êtes-vous sensible au mal des transports / manèges ?</label>
+                <select id="motionSickness" style="width: 100%; padding: 12px; background-color: #0f3460; color: white; border: none; border-radius: 6px;">
+                    <option value="1">Pas du tout sensible</option>
+                    <option value="2">Légèrement</option>
+                    <option value="3">Moyennement</option>
+                    <option value="4">Assez sensible</option>
+                    <option value="5">Très sensible</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="vrExperience">🥽 Quelle est votre expérience en Réalité Virtuelle ?</label>
+                <select id="vrExperience" style="width: 100%; padding: 12px; background-color: #0f3460; color: white; border: none; border-radius: 6px;">
+                    <option value="1">C'est ma toute première fois (Débutant)</option>
+                    <option value="2">J'ai testé 2-3 fois</option>
+                    <option value="3">J'y joue de temps en temps</option>
+                    <option value="4">J'y joue régulièrement</option>
+                    <option value="5">Je suis un expert (Aucun effet négatif)</option>
+                </select>
+            </div>
+            
+            <button type="submit">Analyser mon profil</button>
+        </form>
+        <p id="message" class="error-message"></p>
+    </div>
+
+    <script>
+        document.getElementById('antecedentsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageElement = document.getElementById('message');
+            
+            const username = localStorage.getItem('temp_username') || "testvr"; 
+            const motion_sickness = parseInt(document.getElementById('motionSickness').value);
+            const vr_experience = parseInt(document.getElementById('vrExperience').value);
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/antecedents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, motion_sickness, vr_experience })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageElement.style.color = "#00ffcc";
+                    messageElement.innerText = `Analyse terminée ! Votre score de sensibilité est de : ${result.score}/10. Redirection vers votre catalogue...`;
+                    
+                    localStorage.setItem('user_score', result.score);
+                    
+                    setTimeout(() => { window.location.href = 'catalogue.html'; }, 3000);
+                } else {
+                    messageElement.style.color = "#e94560";
+                    messageElement.innerText = "Erreur lors du calcul.";
+                }
+            } catch (err) {
+                messageElement.style.color = "#ffde7d";
+                messageElement.innerText = "Impossible de joindre le serveur.";
+            }
+        });
+    </script>
+</body>
+</html>

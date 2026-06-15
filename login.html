@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dizzy Fix - Connexion</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-container">
+        <h1>🌀 Dizzy Fix</h1>
+        <p>Launcher VR intelligent contre la cinétose</p>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">Identifiant</label>
+                <input type="text" id="username" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" required>
+            </div>
+            
+            <button type="submit">Se connecter</button>
+        </form>
+
+        <p><a href="register.html" style="color: #848ccf; text-decoration: none; font-size: 13px; display: inline-block; margin-top: 15px;">Pas encore de compte ? S'inscrire</a></p>
+        <p id="message" class="error-message"></p>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageElement = document.getElementById('message');
+            
+            messageElement.style.color = "#848ccf";
+            messageElement.innerText = "Vérification en cours...";
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageElement.style.color = "#00ffcc";
+                    messageElement.innerText = `Bienvenue, ${result.user.full_name} !`;
+                    
+                    localStorage.setItem('user_score', result.user.ai_sensitivity_score);
+                    
+                    setTimeout(() => { 
+                        window.location.href = 'catalogue.html'; 
+                    }, 2000);
+                } else {
+                    messageElement.style.color = "#e94560";
+                    messageElement.innerText = "Identifiants incorrects.";
+                }
+            } catch (error) {
+                messageElement.style.color = "#ffde7d";
+                messageElement.innerText = "Erreur : Serveur Python déconnecté.";
+            }
+        });
+    </script>
+</body>
+</html>

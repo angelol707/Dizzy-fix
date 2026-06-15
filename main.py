@@ -1,0 +1,139 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import mysql.connector
+from datetime import datetime
+
+app = FastAPI(title="Cybersickness API")
+
+# Configuration de la connexion MySQL (XAMPP)
+db_config = {
+    "host": "localhost",
+    "port": 3306,
+    "user": "root",
+    "password": "", 
+    "database": "cybersickness"
+}
+
+# --- MODELES DE DONNEES ---
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    full_name: str
+
+class SymptomReport(BaseModel):
+    session_id: int
+    symptom_id: int
+    severity: int
+
+# --- ROUTES ---
+
+@app.get("/")
+def read_root():
+    return {"status": "L'API Cybersickness fonctionne correctement"}
+
+# 1. ROUTE DE LOGIN
+@app.post("/api/login")
+def login(data: LoginRequest):
+    try:
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor(dictionary=True)
+        
+        query = "SELECT id, username, full_name, ai_sensitivity_score FROM users WHERE username = %s AND password_hash = %s"
+        cursor.execute(query, (data.username, data.password))
+        user = cursor.fetchone()
+        
+        cursor.close()
+        connection.close()
+        
+        if user:
+            return {"success": True, "message": "Connexion réussie", "user": user}
+        else:
+            raise HTTPException(status_code=401, detail="Identifiants incorrects")
+            
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Erreur DB : {err}")
+
+# 2. ROUTE D'INSCRIPTION (REGISTER)
+@app.post("/api/register")
+def register(data: RegisterRequest):
+    try:
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        
+        # On vérifie si le pseudo existe déjà
+        cursor.execute("SELECT id FROM users WHERE username = %s", (data.username,))
+        if cursor.fetchone():
+            cursor.close()
+            connection.close()
+            raise HTTPException(status_code=400, detail="Ce nom d'utilisateur est déjà pris.")
+            
+        # Insertion du nouveau joueur avec un score de sensibilité par défaut (5/10)
+        query = """
+            INSERT INTO users (username, email, password_hash, full_name, ai_sensitivity_score) 
+            VALUES (%s, %s, %s, %s, 5)
+        """
+        cursor.execute(query, (data.username, data.email, data.password, data.full_name))
+        connection.commit()
+        
+        cursor.close()
+        connection.close()
+        return {"success": True, "message": "Compte créé avec succès !"}
+        
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Erreur DB : {err}")
+
+# 3. ROUTE DU QUESTIONNAIRE
+class AntecedentsRequest(BaseModel):
+    username: str
+    motion_sickness: int  # Note de 1 à 5 (sensibilité transports)
+    vr_experience: int     # Note de 1 à 5 (habitude de la VR)
+
+# 3. ROUTE DES ANTECEDENTS : Matrice de score personnalisée
+@app.post("/api/antecedents")
+def save_antecedents(data: AntecedentsRequest):
+    try:
+        # Lignes = Sensibilité transports (1 à 5)
+        # Colonnes = Expérience VR (1 à 5)
+        # On définit EXACTEMENT le score pour chaque situation
+        score_matrix = {
+            # --- Pas du tout sensible (1) ---
+            1: {1: 4, 2: 3, 3: 2, 4: 1, 5: 1},
+            
+            # --- Légèrement sensible (2) ---
+            # Pour ton test : ligne 2 (Légèrement), colonne 2 (Quelques fois) -> ça donnera 7 ! (Donc Orange bloqué !)
+            2: {1: 8, 2: 7, 3: 5, 4: 3, 5: 2},
+            
+            # --- Moyennement sensible (3) ---
+            3: {1: 9, 2: 8, 3: 6, 4: 5, 5: 3},
+            
+            # --- Assez sensible (4) ---
+            4: {1: 10, 2: 9, 3: 8, 4: 7, 5: 5},
+            
+            # --- Très sensible (5) ---
+            5: {1: 10, 2: 10, 3: 9, 4: 8, 5: 6}
+        }
+        
+        # On récupère le score parfait dans notre tableau
+        # Si jamais une valeur sort de nulle part, on met 5 par défaut
+        calculated_score = score_matrix.get(data.motion_sickness, {}).get(data.vr_experience, 5)
+        
+        # Connexion et mise à jour en BDD
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        
+        query = "UPDATE users SET ai_sensitivity_score = %s WHERE username = %s"
+        cursor.execute(query, (calculated_score, data.username))
+        connection.commit()
+        
+        cursor.close()
+        connection.close()
+        
+        return {"success": True, "score": calculated_score}
+        
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Erreur DB : {err}")

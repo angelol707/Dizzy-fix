@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dizzy Fix - Bibliothèque</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #0f3460; }
+        .grid { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .card { background: #16162a; border: 2px solid #0f3460; border-radius: 8px; padding: 20px; width: 200px; text-align: center; position: relative; transition: all 0.3s ease; }
+        
+        .card.locked { opacity: 0.25; filter: grayscale(100%); border-color: #333; }
+        .card.locked button { background-color: #444 !important; cursor: not-allowed; pointer-events: none; }
+        
+        .badge { padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
+        .badge.green { background: #00ffcc; color: #1a1a2e; }
+        .badge.orange { background: #ff9f43; color: white; }
+        .badge.red { background: #e94560; color: white; }
+        .lock-text { color: #e94560; font-weight: bold; font-size: 14px; margin-top: 12px; display: none; }
+
+        .btn-back { background-color: #0f3460; color: #848ccf; border: 1px solid #848ccf; padding: 8px 15px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 14px; }
+        .btn-back:hover { background-color: #e94560; color: white; border-color: #e94560; }
+    </style>
+</head>
+<body>
+    <div style="width: 850px; margin: auto; padding-top: 20px;">
+        
+        <div class="header-bar">
+            <h2 style="margin: 0; font-size: 18px; color: #848ccf;">🌀 Dizzy Fix Dashboard</h2>
+            <button class="btn-back" id="logoutBtn">⬅️ Déconnexion</button>
+        </div>
+
+        <div style="text-align: center;">
+            <h1>🎮 Votre Bibliothèque VR Sécurisée</h1>
+            <p id="welcomeScore" style="font-size: 16px; margin-bottom: 40px;">Chargement de votre profil...</p>
+        </div>
+        
+        <div class="grid">
+            <div class="card" id="gameBeatSaber">
+                <span class="badge green">Niveau : Vert</span>
+                <h3>Beat Saber</h3>
+                <p>Mouvements statiques, idéal débutant.</p>
+                <button style="margin-top:20px;">Lancer le jeu</button>
+            </div>
+
+            <div class="card" id="gameSuperhot">
+                <span class="badge orange">Niveau : Orange</span>
+                <h3>Superhot VR</h3>
+                <p>Esquives légères, demande un peu d'habitude.</p>
+                <button id="btnSuperhot" style="margin-top:20px;">Lancer le jeu</button>
+                <div id="lockSuperhot" class="lock-text">🔒 Bloqué (Sensibilité trop élevée)</div>
+            </div>
+
+            <div class="card" id="gameAlyx">
+                <span class="badge red">Niveau : Rouge</span>
+                <h3>Half-Life: Alyx</h3>
+                <p>Déplacements fluides, cinétose élevée.</p>
+                <button id="btnAlyx" style="margin-top:20px;">Lancer le jeu</button>
+                <div id="lockAlyx" class="lock-text">🔒 Bloqué (Sensibilité modérée/élevée)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const score = parseInt(localStorage.getItem('user_score')) || 5;
+        document.getElementById('welcomeScore').innerText = `En fonction de vos antécédents, votre score de sensibilité est de ${score}/10.`;
+
+        if (score >= 7) {
+            document.getElementById('gameSuperhot').classList.add('locked');
+            document.getElementById('lockSuperhot').style.display = 'block';
+            document.getElementById('gameAlyx').classList.add('locked');
+            document.getElementById('lockAlyx').style.display = 'block';
+        } 
+        else if (score >= 4) {
+            document.getElementById('gameAlyx').classList.add('locked');
+            document.getElementById('lockAlyx').style.display = 'block';
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.clear(); 
+            window.location.href = 'login.html'; 
+        });
+    </script>
+</body>
+</html>
