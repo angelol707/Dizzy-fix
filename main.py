@@ -17,7 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_yolo = YOLO('yolov8n-pose.pt')  # keypoints faciaux : nez, yeux, oreilles
+_yolo = YOLO('yolov8n-pose.pt')
+_yolo.to('cpu')  # force CPU — évite les conflits de pilotes GPU
 
 # Configuration de la connexion MySQL (XAMPP)
 db_config = {
@@ -173,7 +174,7 @@ async def head_tracking_ws(websocket: WebSocket):
 
             # Inférence YOLOv8-Pose
             results = await loop.run_in_executor(
-                None, lambda: _yolo(frame, verbose=False, conf=0.5)
+                None, lambda: _yolo(frame, verbose=False, conf=0.5, device='cpu')
             )
 
             payload = {"detected": False, "yaw": 0.0, "pitch": 0.0}
