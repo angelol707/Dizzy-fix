@@ -6,6 +6,7 @@ from datetime import datetime
 import asyncio
 import base64
 import cv2
+from ultralytics import YOLO
 
 app = FastAPI(title="Cybersickness API")
 
@@ -16,8 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-_eye_cascade  = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+_yolo = YOLO('yolov8n-pose.pt')  # keypoints faciaux : nez, yeux, oreilles
 
 # Configuration de la connexion MySQL (XAMPP)
 db_config = {
@@ -170,31 +170,63 @@ async def head_tracking_ws(websocket: WebSocket):
                 continue
 
             frame = cv2.flip(frame, 1)
-            gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = _face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+
+            # Inférence YOLOv8-Pose
+            results = await loop.run_in_executor(
+                None, lambda: _yolo(frame, verbose=False, conf=0.5)
+            )
 
             payload = {"detected": False, "yaw": 0.0, "pitch": 0.0}
 
-            if len(faces) > 0:
-                fx, fy, fw, fh = faces[0]
+            kps_data = results[0].keypoints if results else None
+            if kps_data and len(kps_data) > 0:
+                # COCO keypoints: 0=nez 1=oeil_g 2=oeil_d 3=oreille_g 4=oreille_d
+                kps  = kps_data.xy[0]   # shape (17, 2)
+                conf_kps = kps_data.conf[0]  # shape (17,)
 
-                # Draw face rectangle
-                cv2.rectangle(frame, (fx, fy), (fx+fw, fy+fh), (0, 255, 180), 2)
+                nose    = kps[0];  l_eye = kps[1];  r_eye = kps[2]
+                l_ear   = kps[3];  r_ear = kps[4]
 
-                # Detect and draw eyes
-                roi_gray = gray[fy:fy+fh, fx:fx+fw]
-                eyes = _eye_cascade.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5)
-                for (ex, ey, ew, eh) in eyes[:2]:
-                    cv2.rectangle(frame, (fx+ex, fy+ey), (fx+ex+ew, fy+ey+eh), (130, 140, 255), 1)
+                # Dessiner les keypoints faciaux visibles
+                face_pts = [(0, (0,255,180)), (1, (130,140,255)), (2, (130,140,255)),
+                            (3, (255,160,50)), (4, (255,160,50))]
+                for idx, color in face_pts:
+                    if conf_kps[idx] > 0.3:
+                        cv2.circle(frame, (int(kps[idx][0]), int(kps[idx][1])), 4, color, -1)
 
-                # Estimate head pose from face center offset
-                frame_cx = frame.shape[1] / 2
-                frame_cy = frame.shape[0] / 2
-                face_cx  = fx + fw / 2
-                face_cy  = fy + fh / 2
+                # Label
+                box = results[0].boxes
+                if box and len(box) > 0:
+                    bx1, by1 = map(int, box.xyxy[0][:2])
+                    cv2.putText(frame, f"YOLOv8-Pose {float(box.conf[0]):.2f}",
+                                (bx1, max(by1 - 6, 10)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 180), 1)
 
-                yaw   = (face_cx - frame_cx) / (frame.shape[1] / 2) * 45
-                pitch = (face_cy - frame_cy) / (frame.shape[0] / 2) * 30
+                # --- Calcul Yaw depuis oreilles (ou yeux si oreilles invisibles) ---
+                l_vis = conf_kps[3] > 0.3
+                r_vis = conf_kps[4] > 0.3
+                if l_vis and r_vis:
+                    ear_mid_x = (l_ear[0] + r_ear[0]) / 2
+                    ear_width = abs(l_ear[0] - r_ear[0])
+                    yaw = float((nose[0] - ear_mid_x) / (ear_width / 2) * 45) if ear_width > 5 else 0.0
+                elif conf_kps[1] > 0.3 and conf_kps[2] > 0.3:
+                    eye_mid_x = (l_eye[0] + r_eye[0]) / 2
+                    yaw = float((nose[0] - eye_mid_x) / (frame.shape[1] / 4) * 45)
+                else:
+                    yaw = float((nose[0] - frame.shape[1] / 2) / (frame.shape[1] / 2) * 45)
+
+                # --- Calcul Pitch depuis ratio nez/yeux (normalisé par largeur inter-yeux) ---
+                if conf_kps[1] > 0.3 and conf_kps[2] > 0.3:
+                    eye_mid_y  = (float(l_eye[1]) + float(r_eye[1])) / 2
+                    eye_width  = abs(float(l_eye[0]) - float(r_eye[0]))
+                    if eye_width > 5:
+                        # ratio ≈ 1.0 en frontal ; tête haut → ratio < 1 ; tête bas → ratio > 1
+                        ratio = (float(nose[1]) - eye_mid_y) / eye_width
+                        pitch = -(ratio - 1.0) * 30
+                    else:
+                        pitch = 0.0
+                else:
+                    pitch = float((nose[1] - frame.shape[0] / 2) / (frame.shape[0] / 2) * 30)
 
                 payload = {"detected": True, "yaw": round(yaw, 1), "pitch": round(pitch, 1)}
 
