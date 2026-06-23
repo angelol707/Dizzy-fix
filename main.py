@@ -1,9 +1,23 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import mysql.connector
 from datetime import datetime
+import asyncio
+import base64
+import cv2
 
 app = FastAPI(title="Cybersickness API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+_face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+_eye_cascade  = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
 # Configuration de la connexion MySQL (XAMPP)
 db_config = {
@@ -134,6 +148,65 @@ def save_antecedents(data: AntecedentsRequest):
         connection.close()
         
         return {"success": True, "score": calculated_score}
-        
+
     except mysql.connector.Error as err:
         raise HTTPException(status_code=500, detail=f"Erreur DB : {err}")
+
+
+# 4. WEBSOCKET HEAD TRACKING
+@app.websocket("/ws/head-tracking")
+async def head_tracking_ws(websocket: WebSocket):
+    await websocket.accept()
+    loop = asyncio.get_event_loop()
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+
+    try:
+        while True:
+            ret, frame = await loop.run_in_executor(None, cap.read)
+            if not ret:
+                await asyncio.sleep(0.05)
+                continue
+
+            frame = cv2.flip(frame, 1)
+            gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = _face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+
+            payload = {"detected": False, "yaw": 0.0, "pitch": 0.0}
+
+            if len(faces) > 0:
+                fx, fy, fw, fh = faces[0]
+
+                # Draw face rectangle
+                cv2.rectangle(frame, (fx, fy), (fx+fw, fy+fh), (0, 255, 180), 2)
+
+                # Detect and draw eyes
+                roi_gray = gray[fy:fy+fh, fx:fx+fw]
+                eyes = _eye_cascade.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5)
+                for (ex, ey, ew, eh) in eyes[:2]:
+                    cv2.rectangle(frame, (fx+ex, fy+ey), (fx+ex+ew, fy+ey+eh), (130, 140, 255), 1)
+
+                # Estimate head pose from face center offset
+                frame_cx = frame.shape[1] / 2
+                frame_cy = frame.shape[0] / 2
+                face_cx  = fx + fw / 2
+                face_cy  = fy + fh / 2
+
+                yaw   = (face_cx - frame_cx) / (frame.shape[1] / 2) * 45
+                pitch = (face_cy - frame_cy) / (frame.shape[0] / 2) * 30
+
+                payload = {"detected": True, "yaw": round(yaw, 1), "pitch": round(pitch, 1)}
+
+            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 55])
+            payload["frame"] = base64.b64encode(buf).decode("utf-8")
+
+            await websocket.send_json(payload)
+            await asyncio.sleep(0.05)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[head-tracking] {e}")
+    finally:
+        cap.release()

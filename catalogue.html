@@ -8,10 +8,10 @@
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #0f3460; }
         .grid { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
         .card { background: #16162a; border: 2px solid #0f3460; border-radius: 8px; padding: 20px; width: 200px; text-align: center; position: relative; transition: all 0.3s ease; }
-        
+
         .card.locked { opacity: 0.25; filter: grayscale(100%); border-color: #333; }
         .card.locked button { background-color: #444 !important; cursor: not-allowed; pointer-events: none; }
-        
+
         .badge { padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
         .badge.green { background: #00ffcc; color: #1a1a2e; }
         .badge.orange { background: #ff9f43; color: white; }
@@ -20,11 +20,32 @@
 
         .btn-back { background-color: #0f3460; color: #848ccf; border: 1px solid #848ccf; padding: 8px 15px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 14px; }
         .btn-back:hover { background-color: #e94560; color: white; border-color: #e94560; }
+
+        /* AI Section */
+        #ai-section { margin-top: 40px; border-top: 1px solid #0f3460; padding-top: 30px; padding-bottom: 30px; }
+        #ai-section h2 { text-align: center; color: #848ccf; margin-bottom: 8px; }
+        #ai-section p { text-align: center; color: #aaa; font-size: 14px; margin-bottom: 25px; }
+        .ai-layout { display: flex; gap: 25px; justify-content: center; align-items: flex-start; }
+        .ai-cam-wrapper { position: relative; border-radius: 8px; overflow: hidden; border: 2px solid #0f3460; line-height: 0; }
+        #ai-webcam { display: block; transform: scaleX(-1); }
+        #ai-canvas { position: absolute; top: 0; left: 0; transform: scaleX(-1); }
+        #ai-loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(22,22,42,0.95); display: flex; align-items: center; justify-content: center; color: #848ccf; font-size: 13px; flex-direction: column; gap: 8px; }
+        .ai-stats { background: #16162a; border: 2px solid #0f3460; border-radius: 8px; padding: 20px; width: 240px; }
+        .ai-stat-row { margin-bottom: 18px; }
+        .ai-stat-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .ai-stat-label span:first-child { color: #848ccf; font-size: 11px; text-transform: uppercase; }
+        .ai-stat-label span:last-child { color: white; font-size: 12px; font-weight: bold; }
+        .ai-bar-bg { background: #0f3460; border-radius: 4px; height: 8px; overflow: hidden; }
+        .ai-bar-fill { height: 100%; border-radius: 4px; transition: width 0.15s ease, background 0.15s ease; }
+        #ai-alert { display: none; background: #e94560; border-radius: 6px; padding: 10px; text-align: center; font-size: 13px; margin-bottom: 15px; font-weight: bold; }
+        #ai-status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+        #ai-dot { width: 10px; height: 10px; border-radius: 50%; background: #444; flex-shrink: 0; }
+        #ai-btn { width: 100%; }
     </style>
 </head>
 <body>
     <div style="width: 850px; margin: auto; padding-top: 20px;">
-        
+
         <div class="header-bar">
             <h2 style="margin: 0; font-size: 18px; color: #848ccf;">🌀 Dizzy Fix Dashboard</h2>
             <button class="btn-back" id="logoutBtn">⬅️ Déconnexion</button>
@@ -34,7 +55,7 @@
             <h1>🎮 Votre Bibliothèque VR Sécurisée</h1>
             <p id="welcomeScore" style="font-size: 16px; margin-bottom: 40px;">Chargement de votre profil...</p>
         </div>
-        
+
         <div class="grid">
             <div class="card" id="gameBeatSaber">
                 <span class="badge green">Niveau : Vert</span>
@@ -59,9 +80,70 @@
                 <div id="lockAlyx" class="lock-text">🔒 Bloqué (Sensibilité modérée/élevée)</div>
             </div>
         </div>
+
+        <!-- IA HEAD TRACKING SECTION -->
+        <div id="ai-section">
+            <h2>🤖 Suivi IA – Head Tracking</h2>
+            <p>Analyse vos mouvements de tête en temps réel pour détecter les signes de cybersickness.</p>
+
+            <div class="ai-layout">
+                <!-- Webcam (stream depuis Python) -->
+                <div class="ai-cam-wrapper">
+                    <img id="ai-img" width="320" height="240" style="display: block; border-radius: 0;" src="" alt="">
+                    <div id="ai-loading">
+                        <span style="font-size: 28px;">📷</span>
+                        <span>Caméra inactive</span>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="ai-stats">
+                    <div id="ai-status-row">
+                        <div id="ai-dot"></div>
+                        <span id="ai-status-text" style="color: #aaa; font-size: 13px;">Inactif</span>
+                    </div>
+
+                    <div class="ai-stat-row">
+                        <div class="ai-stat-label">
+                            <span>Rotation horizontale (Yaw)</span>
+                            <span id="ai-yaw-val">0°</span>
+                        </div>
+                        <div class="ai-bar-bg">
+                            <div id="ai-yaw-bar" class="ai-bar-fill" style="width: 50%; background: #00ffcc;"></div>
+                        </div>
+                    </div>
+
+                    <div class="ai-stat-row">
+                        <div class="ai-stat-label">
+                            <span>Inclinaison verticale (Pitch)</span>
+                            <span id="ai-pitch-val">0°</span>
+                        </div>
+                        <div class="ai-bar-bg">
+                            <div id="ai-pitch-bar" class="ai-bar-fill" style="width: 50%; background: #00ffcc;"></div>
+                        </div>
+                    </div>
+
+                    <div class="ai-stat-row">
+                        <div class="ai-stat-label">
+                            <span>Intensité des mouvements</span>
+                            <span id="ai-intensity-val">--</span>
+                        </div>
+                        <div class="ai-bar-bg">
+                            <div id="ai-intensity-bar" class="ai-bar-fill" style="width: 0%; background: #00ffcc;"></div>
+                        </div>
+                    </div>
+
+                    <div id="ai-alert">⚠️ Mouvements excessifs détectés !</div>
+
+                    <button id="ai-btn" onclick="toggleAI()">▶ Démarrer le suivi</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
+        // --- Jeux ---
         const score = parseInt(localStorage.getItem('user_score')) || 5;
         document.getElementById('welcomeScore').innerText = `En fonction de vos antécédents, votre score de sensibilité est de ${score}/10.`;
 
@@ -70,16 +152,107 @@
             document.getElementById('lockSuperhot').style.display = 'block';
             document.getElementById('gameAlyx').classList.add('locked');
             document.getElementById('lockAlyx').style.display = 'block';
-        } 
-        else if (score >= 4) {
+        } else if (score >= 4) {
             document.getElementById('gameAlyx').classList.add('locked');
             document.getElementById('lockAlyx').style.display = 'block';
         }
 
         document.getElementById('logoutBtn').addEventListener('click', () => {
-            localStorage.clear(); 
-            window.location.href = 'login.html'; 
+            localStorage.clear();
+            window.location.href = 'login.html';
         });
+
+        // --- IA Head Tracking via WebSocket (Python backend) ---
+        let ws = null;
+        let lastYaw = 0, lastPitch = 0;
+
+        function toggleAI() {
+            if (!ws) startAI(); else stopAI();
+        }
+
+        function startAI() {
+            setStatus('Connexion…', '#ff9f43');
+            document.getElementById('ai-btn').textContent = '⏹ Arrêter le suivi';
+
+            ws = new WebSocket('ws://127.0.0.1:8000/ws/head-tracking');
+
+            ws.onopen = () => {
+                setStatus('Actif', '#00ffcc');
+                document.getElementById('ai-loading').style.display = 'none';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.frame) {
+                    document.getElementById('ai-img').src = 'data:image/jpeg;base64,' + data.frame;
+                }
+                if (data.detected) {
+                    updateHeadStats(data.yaw, data.pitch);
+                }
+            };
+
+            ws.onerror = () => {
+                setStatus('Erreur — serveur Python actif ?', '#e94560');
+            };
+
+            ws.onclose = () => {
+                ws = null;
+                document.getElementById('ai-btn').textContent = '▶ Démarrer le suivi';
+                document.getElementById('ai-loading').style.display = 'flex';
+                setStatus('Inactif', '#aaa');
+                document.getElementById('ai-dot').style.background = '#444';
+                document.getElementById('ai-alert').style.display = 'none';
+                resetHeadStats();
+            };
+        }
+
+        function stopAI() {
+            if (ws) { ws.close(); ws = null; }
+        }
+
+        function setStatus(text, color) {
+            document.getElementById('ai-dot').style.background = color;
+            document.getElementById('ai-status-text').textContent = text;
+            document.getElementById('ai-status-text').style.color = color;
+        }
+
+        function updateHeadStats(yaw, pitch) {
+            const yawPct   = Math.min(100, Math.max(0, 50 + (yaw / 45) * 50));
+            const yawColor = Math.abs(yaw) > 30 ? '#e94560' : Math.abs(yaw) > 15 ? '#ff9f43' : '#00ffcc';
+            document.getElementById('ai-yaw-val').textContent = yaw.toFixed(1) + '°';
+            document.getElementById('ai-yaw-bar').style.width = yawPct + '%';
+            document.getElementById('ai-yaw-bar').style.background = yawColor;
+
+            const pitchPct   = Math.min(100, Math.max(0, 50 + (pitch / 30) * 50));
+            const pitchColor = Math.abs(pitch) > 20 ? '#e94560' : Math.abs(pitch) > 10 ? '#ff9f43' : '#00ffcc';
+            document.getElementById('ai-pitch-val').textContent = pitch.toFixed(1) + '°';
+            document.getElementById('ai-pitch-bar').style.width = pitchPct + '%';
+            document.getElementById('ai-pitch-bar').style.background = pitchColor;
+
+            const delta     = Math.abs(yaw - lastYaw) + Math.abs(pitch - lastPitch);
+            const intensity = Math.min(100, delta * 6);
+            const iColor    = intensity > 65 ? '#e94560' : intensity > 35 ? '#ff9f43' : '#00ffcc';
+            const iLabel    = intensity < 20 ? 'Normal' : intensity < 50 ? 'Modéré' : 'Élevé';
+            document.getElementById('ai-intensity-val').textContent = iLabel;
+            document.getElementById('ai-intensity-bar').style.width = intensity + '%';
+            document.getElementById('ai-intensity-bar').style.background = iColor;
+
+            document.getElementById('ai-alert').style.display =
+                (intensity > 65 || Math.abs(yaw) > 35 || Math.abs(pitch) > 25) ? 'block' : 'none';
+
+            lastYaw = yaw;
+            lastPitch = pitch;
+        }
+
+        function resetHeadStats() {
+            document.getElementById('ai-yaw-val').textContent = '0°';
+            document.getElementById('ai-yaw-bar').style.width = '50%';
+            document.getElementById('ai-pitch-val').textContent = '0°';
+            document.getElementById('ai-pitch-bar').style.width = '50%';
+            document.getElementById('ai-intensity-val').textContent = '--';
+            document.getElementById('ai-intensity-bar').style.width = '0%';
+            lastYaw = 0; lastPitch = 0;
+        }
     </script>
 </body>
 </html>

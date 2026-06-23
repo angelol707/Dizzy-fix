@@ -7,9 +7,10 @@ function createMainWindow() {
         height: 600,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
+            contextIsolation: false,
+            devTools: true
         },
-        autoHideMenuBar: true // Cache la barre de menu du haut pour faire plus "logiciel pro"
+        autoHideMenuBar: true
     });
 
     mainWindow.loadFile('login.html');
